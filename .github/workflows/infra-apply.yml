@@ -1,0 +1,73 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/infra-apply.yml'
+  workflow_dispatch:
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_WORKDIR: terraform
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-1' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform init -input=false
+
+      - name: Terraform Fmt
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform fmt -check
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: |
+          set +e
+          terraform plan -input=false -out=tfplan -detailed-exitcode
+          exit_code=$?
+          set -e
+          if [ $exit_code -eq 1 ]; then
+            echo "Terraform plan failed"
+            exit 1
+          fi
+          if [ $exit_code -eq 2 ]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Show Plan
+        if: steps.plan.outputs.changes == 'true'
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform show -no-color tfplan
+
+      - name: Terraform Apply
+        if: steps.plan.outputs.changes == 'true'
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform apply -input=false tfplan
