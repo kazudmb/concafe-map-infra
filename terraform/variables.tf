@@ -74,13 +74,7 @@ variable "github_owner" {
 variable "github_repo" {
   description = "GitHub repository name"
   type        = string
-  default     = "concafe-map"
-}
-
-variable "github_branch" {
-  description = "Branch allowed to assume CI role"
-  type        = string
-  default     = "main"
+  default     = "concafe-map-infra"
 }
 
 variable "github_oidc_thumbprints" {
