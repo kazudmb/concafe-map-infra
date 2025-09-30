@@ -1,10 +1,10 @@
 locals {
-  table_name          = "${var.project}-cafes"
-  lambda_role_name    = "${var.project}-lambda-role"
-  get_cafes_zip       = "${path.root}/get_cafes.zip"
-  upsert_cafes_zip    = "${path.root}/upsert_cafes.zip"
-  get_cafes_source    = "${path.module}/../../../../backend/get_cafes/main.py"
-  upsert_cafes_source = "${path.module}/../../../../backend/upsert_cafes/main.py"
+  table_name                = "${var.project}-cafes"
+  lambda_role_name          = "${var.project}-lambda-role"
+  get_cafes_source_path     = "${path.module}/../../../../backend/get_cafes/main.py"
+  upsert_cafes_source_path  = "${path.module}/../../../../backend/upsert_cafes/main.py"
+  get_cafes_source_exists   = fileexists(local.get_cafes_source_path)
+  upsert_cafes_source_exists = fileexists(local.upsert_cafes_source_path)
 }
 
 data "aws_iam_policy_document" "lambda_assume" {
@@ -77,15 +77,46 @@ resource "aws_iam_role_policy_attachment" "ddb_rw_attach" {
 }
 
 data "archive_file" "get_cafes" {
+  count       = local.get_cafes_source_exists ? 1 : 0
   type        = "zip"
-  source_file = local.get_cafes_source
-  output_path = local.get_cafes_zip
+  source_file = local.get_cafes_source_path
+  output_path = "${path.module}/get_cafes.zip"
+}
+
+data "archive_file" "get_cafes_placeholder" {
+  count                     = local.get_cafes_source_exists ? 0 : 1
+  type                      = "zip"
+  output_path               = "${path.module}/get_cafes_placeholder.zip"
+  source_content            = <<PY
+def handler(event, context):
+    raise RuntimeError("Placeholder artifact. Deploy real code via backend pipeline.")
+PY
+  source_content_filename   = "main.py"
 }
 
 data "archive_file" "upsert_cafes" {
+  count       = local.upsert_cafes_source_exists ? 1 : 0
   type        = "zip"
-  source_file = local.upsert_cafes_source
-  output_path = local.upsert_cafes_zip
+  source_file = local.upsert_cafes_source_path
+  output_path = "${path.module}/upsert_cafes.zip"
+}
+
+data "archive_file" "upsert_cafes_placeholder" {
+  count                     = local.upsert_cafes_source_exists ? 0 : 1
+  type                      = "zip"
+  output_path               = "${path.module}/upsert_cafes_placeholder.zip"
+  source_content            = <<PY
+def handler(event, context):
+    raise RuntimeError("Placeholder artifact. Deploy real code via backend pipeline.")
+PY
+  source_content_filename   = "main.py"
+}
+
+locals {
+  get_cafes_package_path = try(data.archive_file.get_cafes[0].output_path, data.archive_file.get_cafes_placeholder[0].output_path)
+  get_cafes_package_hash = try(data.archive_file.get_cafes[0].output_base64sha256, data.archive_file.get_cafes_placeholder[0].output_base64sha256)
+  upsert_cafes_package_path = try(data.archive_file.upsert_cafes[0].output_path, data.archive_file.upsert_cafes_placeholder[0].output_path)
+  upsert_cafes_package_hash = try(data.archive_file.upsert_cafes[0].output_base64sha256, data.archive_file.upsert_cafes_placeholder[0].output_base64sha256)
 }
 
 resource "aws_lambda_function" "get_cafes" {
@@ -94,14 +125,18 @@ resource "aws_lambda_function" "get_cafes" {
   handler       = "main.handler"
   runtime       = var.lambda_runtime
 
-  filename         = data.archive_file.get_cafes.output_path
-  source_code_hash = data.archive_file.get_cafes.output_base64sha256
+  filename         = local.get_cafes_package_path
+  source_code_hash = local.get_cafes_package_hash
 
   environment {
     variables = {
       TABLE_NAME   = aws_dynamodb_table.cafes.name
       DEFAULT_AREA = var.default_area
     }
+  }
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
   }
 }
 
@@ -111,13 +146,17 @@ resource "aws_lambda_function" "upsert_cafes" {
   handler       = "main.handler"
   runtime       = var.lambda_runtime
 
-  filename         = data.archive_file.upsert_cafes.output_path
-  source_code_hash = data.archive_file.upsert_cafes.output_base64sha256
+  filename         = local.upsert_cafes_package_path
+  source_code_hash = local.upsert_cafes_package_hash
 
   environment {
     variables = {
       TABLE_NAME = aws_dynamodb_table.cafes.name
     }
+  }
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
   }
 }
 
