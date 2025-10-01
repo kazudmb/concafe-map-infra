@@ -48,20 +48,22 @@ jobs:
         id: plan
         working-directory: ${{ env.TF_WORKDIR }}
         run: |
-          set +e
-          terraform plan -input=false -out=tfplan -detailed-exitcode
-          exit_code=$?
-          echo "plan_exit_code=$exit_code"
           set -e
-          if [ $exit_code -eq 1 ]; then
-            echo "Terraform plan failed"
-            exit 1
-          fi
-          if [ $exit_code -eq 2 ]; then
-            echo "changes=true" >> $GITHUB_OUTPUT
-          else
+          terraform plan -input=false -out=tfplan
+          terraform show -json tfplan > tfplan.json
+          if jq -e '.resource_changes | length == 0' tfplan.json >/dev/null; then
             echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
           fi
+
+      - name: Upload Plan JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-json
+          path: terraform/tfplan.json
+          if-no-files-found: ignore
 
       - name: Show Plan
         if: steps.plan.outputs.changes == 'true'
