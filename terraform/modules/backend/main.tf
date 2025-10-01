@@ -1,5 +1,5 @@
 locals {
-  table_name                = "${var.project}-cafes"
+  table_name                = var.project
   lambda_role_name          = "${var.project}-lambda-role"
   get_cafes_source_path     = "${path.module}/../../../../backend/get_cafes/main.py"
   upsert_cafes_source_path  = "${path.module}/../../../../backend/upsert_cafes/main.py"
