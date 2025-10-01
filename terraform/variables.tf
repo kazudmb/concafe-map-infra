@@ -4,10 +4,6 @@ variable "project" {
   default     = "concafe-map"
 }
 
-variable "environment" {
-  description = "Environment identifier (e.g. dev, stg, prd)"
-  type        = string
-}
 
 variable "aws_region" {
   description = "AWS region"
