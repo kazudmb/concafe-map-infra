@@ -1,5 +1,5 @@
 locals {
-  table_name                = "${var.project}-cafes"
+  table_name                = "${var.project}-${var.environment}"
   lambda_role_name          = "${var.project}-lambda-role"
   get_cafes_source_path     = "${path.module}/../../../../backend/get_cafes/main.py"
   upsert_cafes_source_path  = "${path.module}/../../../../backend/upsert_cafes/main.py"
@@ -161,7 +161,7 @@ resource "aws_lambda_function" "upsert_cafes" {
 }
 
 resource "aws_apigatewayv2_api" "http" {
-  name          = "${var.project}-api"
+  name          = "${var.project}-${var.environment}-api"
   protocol_type = "HTTP"
   cors_configuration {
     allow_methods = ["GET", "POST", "OPTIONS"]

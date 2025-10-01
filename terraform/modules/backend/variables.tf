@@ -3,6 +3,11 @@ variable "project" {
   type        = string
 }
 
+variable "environment" {
+  description = "Environment identifier (e.g. dev, stg, prd)"
+  type        = string
+}
+
 variable "account_id" {
   description = "AWS account ID"
   type        = string

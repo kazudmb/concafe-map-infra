@@ -1,5 +1,6 @@
 locals {
   project              = var.project
+  environment          = var.environment
   frontend_bucket_name = coalesce(var.frontend_bucket_name, "${var.project}-frontend")
   gha_role_name        = coalesce(var.existing_ci_role_name, "${var.project}-gha-ci")
 }
@@ -7,9 +8,10 @@ locals {
 data "aws_caller_identity" "current" {}
 
 module "backend" {
-  source     = "./modules/backend"
-  project    = local.project
-  account_id = data.aws_caller_identity.current.account_id
+  source      = "./modules/backend"
+  project     = local.project
+  environment = local.environment
+  account_id  = data.aws_caller_identity.current.account_id
 }
 
 module "frontend" {
@@ -43,7 +45,7 @@ module "github_oidc" {
 
 import {
   to = module.backend.aws_dynamodb_table.cafes
-  id = "${local.project}-cafes"
+  id = "${local.project}-${local.environment}"
 }
 
 import {
