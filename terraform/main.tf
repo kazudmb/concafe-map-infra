@@ -42,7 +42,7 @@ module "github_oidc" {
 }
 
 import {
-  to = module.backend.aws_dynamodb_table.cafes
+  to = module.backend.aws_dynamodb_table.main
   id = "${local.project}-cafes"
 }
 
