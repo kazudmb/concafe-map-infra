@@ -40,38 +40,3 @@ module "github_oidc" {
   github_repo                       = var.github_repo
   gha_role_name                     = local.gha_role_name
 }
-
-import {
-  to = module.backend.aws_dynamodb_table.main
-  id = local.project
-}
-
-import {
-  to = module.backend.aws_iam_role.lambda_role
-  id = "${local.project}-lambda-role"
-}
-
-import {
-  to = module.backend.aws_iam_policy.ddb_rw
-  id = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${local.project}-ddb-rw"
-}
-
-import {
-  to = module.backend.aws_lambda_function.get_cafes
-  id = "${local.project}-get-cafes"
-}
-
-import {
-  to = module.backend.aws_lambda_function.upsert_cafes
-  id = "${local.project}-upsert-cafes"
-}
-
-import {
-  to = module.backend.aws_lambda_permission.api_get_cafes
-  id = "${local.project}-get-cafes/AllowAPIGatewayInvokeGet"
-}
-
-import {
-  to = module.backend.aws_lambda_permission.api_post_cafes
-  id = "${local.project}-upsert-cafes/AllowAPIGatewayInvokePost"
-}
