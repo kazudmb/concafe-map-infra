@@ -17,7 +17,8 @@ data "aws_iam_policy_document" "lambda_assume" {
   }
 }
 
-resource "aws_dynamodb_table" "cafes" {
+
+resource "aws_dynamodb_table" "main" {
   name         = local.table_name
   billing_mode = "PAY_PER_REQUEST"
 
@@ -60,8 +61,8 @@ data "aws_iam_policy_document" "ddb_rw" {
       "dynamodb:Scan"
     ]
     resources = [
-      aws_dynamodb_table.cafes.arn,
-      "${aws_dynamodb_table.cafes.arn}/index/*"
+      aws_dynamodb_table.main.arn,
+      "${aws_dynamodb_table.main.arn}/index/*"
     ]
   }
 }
@@ -130,7 +131,7 @@ resource "aws_lambda_function" "get_cafes" {
 
   environment {
     variables = {
-      TABLE_NAME   = aws_dynamodb_table.cafes.name
+      TABLE_NAME   = aws_dynamodb_table.main.name
       DEFAULT_AREA = var.default_area
     }
   }
@@ -151,7 +152,7 @@ resource "aws_lambda_function" "upsert_cafes" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.cafes.name
+      TABLE_NAME = aws_dynamodb_table.main.name
     }
   }
 
