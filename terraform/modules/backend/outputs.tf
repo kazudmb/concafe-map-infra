@@ -1,24 +1,34 @@
 output "dynamodb_table_name" {
-  value       = aws_dynamodb_table.main.name
+  value       = module.dynamodb.table_name
   description = "Name of the DynamoDB table"
 }
 
 output "dynamodb_table_arn" {
-  value       = aws_dynamodb_table.main.arn
+  value       = module.dynamodb.table_arn
   description = "ARN of the DynamoDB table"
 }
 
 output "lambda_role_arn" {
-  value       = aws_iam_role.lambda_role.arn
+  value       = module.iam.lambda_role_arn
   description = "IAM role ARN used by the Lambda functions"
 }
 
+output "lambda_role_name" {
+  value       = module.iam.lambda_role_name
+  description = "IAM role name used by the Lambda functions"
+}
+
 output "api_endpoint" {
-  value       = aws_apigatewayv2_api.http.api_endpoint
+  value       = module.api.api_endpoint
   description = "Base URL of the HTTP API"
 }
 
-output "lambda_role_name" {
-  value       = aws_iam_role.lambda_role.name
-  description = "IAM role name used by the Lambda functions"
+output "get_lambda_function_name" {
+  value       = module.lambda.get_lambda_function_name
+  description = "GET /cafes Lambda function name"
+}
+
+output "upsert_lambda_function_name" {
+  value       = module.lambda.upsert_lambda_function_name
+  description = "POST /cafes Lambda function name"
 }

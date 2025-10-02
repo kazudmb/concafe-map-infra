@@ -7,9 +7,8 @@ locals {
 data "aws_caller_identity" "current" {}
 
 module "backend" {
-  source     = "./modules/backend"
-  project    = local.project
-  account_id = data.aws_caller_identity.current.account_id
+  source  = "./modules/backend"
+  project = local.project
 }
 
 module "frontend" {

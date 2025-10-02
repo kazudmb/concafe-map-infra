@@ -1,220 +1,29 @@
-locals {
-  table_name                = var.project
-  lambda_role_name          = "${var.project}-lambda-role"
-  get_cafes_source_path     = "${path.module}/../../../../backend/get_cafes/main.py"
-  upsert_cafes_source_path  = "${path.module}/../../../../backend/upsert_cafes/main.py"
-  get_cafes_source_exists   = fileexists(local.get_cafes_source_path)
-  upsert_cafes_source_exists = fileexists(local.upsert_cafes_source_path)
+module "dynamodb" {
+  source  = "./dynamodb"
+  project = var.project
 }
 
-data "aws_iam_policy_document" "lambda_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
-    }
-  }
+module "iam" {
+  source    = "./iam"
+  project   = var.project
+  table_arn = module.dynamodb.table_arn
 }
 
-
-resource "aws_dynamodb_table" "main" {
-  name         = local.table_name
-  billing_mode = "PAY_PER_REQUEST"
-
-  hash_key = "id"
-
-  attribute {
-    name = "id"
-    type = "S"
-  }
-
-  attribute {
-    name = "area"
-    type = "S"
-  }
-
-  global_secondary_index {
-    name            = "gsi_area"
-    hash_key        = "area"
-    projection_type = "ALL"
-  }
+module "lambda" {
+  source           = "./lambda"
+  project          = var.project
+  table_name       = module.dynamodb.table_name
+  lambda_role_arn  = module.iam.lambda_role_arn
+  lambda_role_name = module.iam.lambda_role_name
+  default_area     = var.default_area
+  lambda_runtime   = var.lambda_runtime
 }
 
-resource "aws_iam_role" "lambda_role" {
-  name               = local.lambda_role_name
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_basic" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-data "aws_iam_policy_document" "ddb_rw" {
-  statement {
-    actions = [
-      "dynamodb:PutItem",
-      "dynamodb:BatchWriteItem",
-      "dynamodb:GetItem",
-      "dynamodb:Query",
-      "dynamodb:Scan"
-    ]
-    resources = [
-      aws_dynamodb_table.main.arn,
-      "${aws_dynamodb_table.main.arn}/index/*"
-    ]
-  }
-}
-
-resource "aws_iam_policy" "ddb_rw" {
-  name   = "${var.project}-ddb-rw"
-  policy = data.aws_iam_policy_document.ddb_rw.json
-}
-
-resource "aws_iam_role_policy_attachment" "ddb_rw_attach" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.ddb_rw.arn
-}
-
-data "archive_file" "get_cafes" {
-  count       = local.get_cafes_source_exists ? 1 : 0
-  type        = "zip"
-  source_file = local.get_cafes_source_path
-  output_path = "${path.module}/get_cafes.zip"
-}
-
-data "archive_file" "get_cafes_placeholder" {
-  count                     = local.get_cafes_source_exists ? 0 : 1
-  type                      = "zip"
-  output_path               = "${path.module}/get_cafes_placeholder.zip"
-  source_content            = <<PY
-def handler(event, context):
-    raise RuntimeError("Placeholder artifact. Deploy real code via backend pipeline.")
-PY
-  source_content_filename   = "main.py"
-}
-
-data "archive_file" "upsert_cafes" {
-  count       = local.upsert_cafes_source_exists ? 1 : 0
-  type        = "zip"
-  source_file = local.upsert_cafes_source_path
-  output_path = "${path.module}/upsert_cafes.zip"
-}
-
-data "archive_file" "upsert_cafes_placeholder" {
-  count                     = local.upsert_cafes_source_exists ? 0 : 1
-  type                      = "zip"
-  output_path               = "${path.module}/upsert_cafes_placeholder.zip"
-  source_content            = <<PY
-def handler(event, context):
-    raise RuntimeError("Placeholder artifact. Deploy real code via backend pipeline.")
-PY
-  source_content_filename   = "main.py"
-}
-
-locals {
-  get_cafes_package_path = try(data.archive_file.get_cafes[0].output_path, data.archive_file.get_cafes_placeholder[0].output_path)
-  get_cafes_package_hash = try(data.archive_file.get_cafes[0].output_base64sha256, data.archive_file.get_cafes_placeholder[0].output_base64sha256)
-  upsert_cafes_package_path = try(data.archive_file.upsert_cafes[0].output_path, data.archive_file.upsert_cafes_placeholder[0].output_path)
-  upsert_cafes_package_hash = try(data.archive_file.upsert_cafes[0].output_base64sha256, data.archive_file.upsert_cafes_placeholder[0].output_base64sha256)
-}
-
-resource "aws_lambda_function" "get_cafes" {
-  function_name = "${var.project}-get-cafes"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "main.handler"
-  runtime       = var.lambda_runtime
-
-  filename         = local.get_cafes_package_path
-  source_code_hash = local.get_cafes_package_hash
-
-  environment {
-    variables = {
-      TABLE_NAME   = aws_dynamodb_table.main.name
-      DEFAULT_AREA = var.default_area
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [filename, source_code_hash]
-  }
-}
-
-resource "aws_lambda_function" "upsert_cafes" {
-  function_name = "${var.project}-upsert-cafes"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "main.handler"
-  runtime       = var.lambda_runtime
-
-  filename         = local.upsert_cafes_package_path
-  source_code_hash = local.upsert_cafes_package_hash
-
-  environment {
-    variables = {
-      TABLE_NAME = aws_dynamodb_table.main.name
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [filename, source_code_hash]
-  }
-}
-
-resource "aws_apigatewayv2_api" "http" {
-  name          = "${var.project}-api"
-  protocol_type = "HTTP"
-  cors_configuration {
-    allow_methods = ["GET", "POST", "OPTIONS"]
-    allow_origins = ["*"]
-    allow_headers = ["*"]
-  }
-}
-
-resource "aws_apigatewayv2_integration" "get_cafes" {
-  api_id                 = aws_apigatewayv2_api.http.id
-  integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.get_cafes.invoke_arn
-  payload_format_version = "2.0"
-}
-
-resource "aws_apigatewayv2_route" "get_cafes" {
-  api_id    = aws_apigatewayv2_api.http.id
-  route_key = "GET /cafes"
-  target    = "integrations/${aws_apigatewayv2_integration.get_cafes.id}"
-}
-
-resource "aws_lambda_permission" "api_get_cafes" {
-  statement_id  = "AllowAPIGatewayInvokeGet"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.get_cafes.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
-}
-
-resource "aws_apigatewayv2_integration" "upsert_cafes" {
-  api_id                 = aws_apigatewayv2_api.http.id
-  integration_type       = "AWS_PROXY"
-  integration_uri        = aws_lambda_function.upsert_cafes.invoke_arn
-  payload_format_version = "2.0"
-}
-
-resource "aws_apigatewayv2_route" "post_cafes" {
-  api_id    = aws_apigatewayv2_api.http.id
-  route_key = "POST /cafes"
-  target    = "integrations/${aws_apigatewayv2_integration.upsert_cafes.id}"
-}
-
-resource "aws_lambda_permission" "api_post_cafes" {
-  statement_id  = "AllowAPIGatewayInvokePost"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.upsert_cafes.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http.execution_arn}/*/*"
-}
-
-resource "aws_apigatewayv2_stage" "prod" {
-  api_id      = aws_apigatewayv2_api.http.id
-  name        = "$default"
-  auto_deploy = true
+module "api" {
+  source                      = "./api"
+  project                     = var.project
+  get_lambda_invoke_arn       = module.lambda.get_lambda_invoke_arn
+  get_lambda_function_name    = module.lambda.get_lambda_function_name
+  upsert_lambda_invoke_arn    = module.lambda.upsert_lambda_invoke_arn
+  upsert_lambda_function_name = module.lambda.upsert_lambda_function_name
 }
