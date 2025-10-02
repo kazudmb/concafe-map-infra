@@ -92,10 +92,6 @@ resource "aws_cloudfront_distribution" "frontend" {
   comment             = "${var.project} frontend"
   default_root_object = "index.html"
 
-  lifecycle {
-    prevent_destroy = true
-  }
-
   origin {
     domain_name = local.bucket_domain
     origin_id   = "s3-frontend"
