@@ -1,10 +1,11 @@
+data "aws_caller_identity" "current" {}
+
 locals {
   project              = var.project
-  frontend_bucket_name = coalesce(var.frontend_bucket_name, "${var.project}-frontend")
+  account_id           = data.aws_caller_identity.current.account_id
+  frontend_bucket_name = coalesce(var.frontend_bucket_name, "${var.project}-artifact-${local.account_id}")
   gha_role_name        = coalesce(var.existing_ci_role_name, "${var.project}-gha-ci")
 }
-
-data "aws_caller_identity" "current" {}
 
 module "backend" {
   source  = "./modules/backend"
