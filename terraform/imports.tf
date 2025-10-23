@@ -1,9 +1,4 @@
 import {
-  to = module.backend.module.dynamodb.aws_dynamodb_table.main
-  id = local.project
-}
-
-import {
   to = module.backend.module.iam.aws_iam_role.lambda_role
   id = "${local.project}-lambda-role"
 }
